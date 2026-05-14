@@ -163,6 +163,37 @@ def ttir_to_linalg(mod, metadata, opt, *, named_ops=False):
             enable_select_analysis,
             compile_on_910_95
         )
+        if metadata["enable_dynamic_cv_pipeline"]:
+            ascend.passes.ttir.add_dynamic_cv_pipeline(pm, compile_on_910_95)
+            ascend.passes.ttir.remove_ssbuf_attr(pm)
+
+        _env_val = os.getenv("TRITON_INTRA_CACHE_NUM")
+        _val = int(_env_val) if _env_val is not None else metadata.get("intra_cache_num")
+        if _val is not None:
+            ascend.passes.ttir.set_buffer_count(0, _val)
+
+        _env_val = os.getenv("TRITON_INTER_CACHE_NUM")
+        _val = int(_env_val) if _env_val is not None else metadata.get("inter_cache_num")
+        if _val is not None:
+            ascend.passes.ttir.set_buffer_count(1, _val)
+
+        _env_val = os.getenv("TRITON_LOAD_CACHE_NUM")
+        _val = int(_env_val) if _env_val is not None else metadata.get("load_cache_num")
+        if _val is not None:
+            ascend.passes.ttir.set_buffer_count(2, _val)
+
+        _val = metadata.get("intra_cache_num")
+        if _val is not None:
+            ascend.passes.ttir.set_buffer_count(0, _val)
+
+        _val = metadata.get("inter_cache_num")
+        if _val is not None:
+            ascend.passes.ttir.set_buffer_count(1, _val)
+
+        _val = metadata.get("load_cache_num")
+        if _val is not None:
+            ascend.passes.ttir.set_buffer_count(2, _val)
+
         pm.run(mod)
 
         if opt.debug:
@@ -864,6 +895,7 @@ class NPUOptions:
     enable_mixed_cv: bool = None
     enable_vf_fusion: bool = False
     add_auto_scheduling: bool = False
+    enable_dynamic_cv_pipeline: bool = False
     hfusion_enable_multiple_consumer_fusion: bool = False
 
     stream: int = None
