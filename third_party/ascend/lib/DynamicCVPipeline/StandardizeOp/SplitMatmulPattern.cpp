@@ -24,6 +24,7 @@
 #include <optional>
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -636,7 +637,8 @@ static LogicalResult splitMatmul(linalg::MatmulOp matmulOp, PatternRewriter &rew
     // This is the "c" in a*b+c, added after the matmul result
     rewriter.setInsertionPointAfterValue(splitInfo.outerOutValue);
 
-    Operation *preservedUser = nullptr;
+    constexpr size_t kMaxPreservedUsers = 2;
+    SmallPtrSet<Operation *, kMaxPreservedUsers> preservedUsers;
     if (splitInfo.mayNotExec && forOp) {
         auto lb = forOp.getLowerBound();
         auto ub = forOp.getUpperBound();
@@ -649,10 +651,11 @@ static LogicalResult splitMatmul(linalg::MatmulOp matmulOp, PatternRewriter &rew
         } else if (auto intType = dyn_cast<IntegerType>(elmType)) {
             zeroValue = rewriter.create<arith::ConstantIntOp>(loc, 0, intType).getResult();
         }
-        auto fillOp = rewriter.create<linalg::FillOp>(emptyOp.getLoc(), zeroValue, splitInfo.outerOutValue);
+        auto fillOp = rewriter.create<linalg::FillOp>(loc, zeroValue, splitInfo.outerOutValue);
         auto selectOp = rewriter.create<arith::SelectOp>(loc, executed, splitInfo.outerOutValue, fillOp.getResult(0));
         newOutValue = selectOp.getResult();
-        preservedUser = selectOp;
+        preservedUsers.insert(selectOp);
+        preservedUsers.insert(fillOp);
         forOp->setAttr(CVPipeline::kHIVMMatmulLimitedInCubeAttr, rewriter.getUnitAttr());
     }
 
@@ -662,13 +665,12 @@ static LogicalResult splitMatmul(linalg::MatmulOp matmulOp, PatternRewriter &rew
     } else {
         addOp = rewriter.create<arith::AddIOp>(loc, newOutValue, splitInfo.outerInValue).getOperation();
     }
-    if (preservedUser == nullptr) {
-        preservedUser = addOp;
+    if (preservedUsers.empty()) {
+        preservedUsers.insert(addOp);
     }
     addOp->setAttr(CVPipeline::kAddFromMatmul, rewriter.getUnitAttr());
-    splitInfo.outerOutValue.replaceUsesWithIf(addOp->getResult(0), [preservedUser](OpOperand &operand) {
-        return !preservedUser->isAncestor(operand.getOwner());
-    });
+    splitInfo.outerOutValue.replaceUsesWithIf(
+        addOp->getResult(0), [&](OpOperand &operand) { return !preservedUsers.contains(operand.getOwner()); });
 
     return success();
 }
