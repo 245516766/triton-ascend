@@ -40,8 +40,8 @@
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Support/LLVM.h"
 
-#include "ascend/include/DynamicCVPipeline/PlanComputeBlock/OpClassifier.h"
 #include "ascend/include/DynamicCVPipeline/Common/Utils.h"
+#include "ascend/include/DynamicCVPipeline/PlanComputeBlock/OpClassifier.h"
 
 #include "bishengir/Dialect/Annotation/IR/Annotation.h"
 
@@ -1127,11 +1127,39 @@ void OpClassifierPass::processYieldOperation(Operation *op, Operation *thenYield
             // iter_arg that is passed through without modification), default to
             // VECTOR since no compute op is associated with it.
             if (Operation *def = operand.getDefiningOp()) {
-                OpCoreType ct = getCoreType(def);
-                if (ct == OP_CUBE_ONLY) {
-                    coreTypes.push_back(OP_CUBE_ONLY);
+                LLVM_DEBUG(DBGS() << "[fqf] yield operand def: " << *def << "\n");
+
+                // Check if def is an scf operation's output (scf.for or scf.if result)
+                // If so, we need to find the specific result index and use the corresponding
+                // core_type from the scf op's stored multi-value attribute (e.g., "CUBE,VECTOR")
+                if (isa<scf::SCFDialect>(def->getDialect()) && def->getNumResults() > 0) {
+                    // Find which result index this operand corresponds to in def
+                    unsigned resultIdx = 0;
+                    for (unsigned idx = 0; idx < def->getNumResults(); ++idx) {
+                        if (def->getResult(idx) == operand) {
+                            resultIdx = idx;
+                            break;
+                        }
+                    }
+
+                    // Get core_type from def's attribute (stored as comma-separated multi-value)
+                    auto ctAttr = def->getAttr("ssbuffer.core_type");
+                    if (auto ctStrAttr = dyn_cast<StringAttr>(ctAttr)) {
+                        std::string ctStr = ctStrAttr.getValue().str();
+                        coreTypes.push_back(parseCoreTypeFromString(ctStr, resultIdx));
+                    } else {
+                        // Fallback: use getCoreType(def)
+                        OpCoreType ct = getCoreType(def);
+                        coreTypes.push_back(ct == OP_CUBE_ONLY ? OP_CUBE_ONLY : OP_VECTOR_ONLY);
+                    }
                 } else {
-                    coreTypes.push_back(OP_VECTOR_ONLY);
+                    // Non-scf operation: use getCoreType directly
+                    OpCoreType ct = getCoreType(def);
+                    if (ct == OP_CUBE_ONLY) {
+                        coreTypes.push_back(OP_CUBE_ONLY);
+                    } else {
+                        coreTypes.push_back(OP_VECTOR_ONLY);
+                    }
                 }
             } else {
                 // BlockArgument (e.g., iter_arg passed through scf.for) -> VECTOR
