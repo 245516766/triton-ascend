@@ -1127,8 +1127,6 @@ void OpClassifierPass::processYieldOperation(Operation *op, Operation *thenYield
             // iter_arg that is passed through without modification), default to
             // VECTOR since no compute op is associated with it.
             if (Operation *def = operand.getDefiningOp()) {
-                LLVM_DEBUG(DBGS() << "[fqf] yield operand def: " << *def << "\n");
-
                 // Check if def is an scf operation's output (scf.for or scf.if result)
                 // If so, we need to find the specific result index and use the corresponding
                 // core_type from the scf op's stored multi-value attribute (e.g., "CUBE,VECTOR")
@@ -1197,44 +1195,35 @@ void OpClassifierPass::processYieldOperation(Operation *op, Operation *thenYield
 // values (derived from the defining ops of each yield operand).
 int OpClassifierPass::handleSCFYield()
 {
-    // Collect all scf.if operations
-    llvm::SmallVector<scf::IfOp> ifOps;
-    for (Operation *op : allOps) {
+    // Walk all scf.if and scf.for operations to process their yield terminators
+    ModuleOp module = getOperation();
+    module.walk([&](Operation *op) {
         if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
-            ifOps.push_back(ifOp);
-        }
-    }
+            Operation *thenYield = nullptr;
 
-    // Process scf.if operations: first then region, then else region
-    for (scf::IfOp ifOp : ifOps) {
-        Operation *thenYield = nullptr;
-        if (!ifOp.getThenRegion().empty()) {
-            thenYield = ifOp.getThenRegion().back().getTerminator();
-        }
+            // Process then region yield (no thenYieldForElse)
+            if (!ifOp.getThenRegion().empty()) {
+                thenYield = ifOp.getThenRegion().back().getTerminator();
+                if (isa<scf::YieldOp>(thenYield)) {
+                    processYieldOperation(thenYield, nullptr);
+                }
+            }
 
-        if (isa<scf::YieldOp>(thenYield)) {
-            processYieldOperation(thenYield, nullptr);
-        }
-
-        if (!ifOp.getElseRegion().empty()) {
-            Operation *elseYield = ifOp.getElseRegion().back().getTerminator();
-            if (isa<scf::YieldOp>(elseYield)) {
-                processYieldOperation(elseYield, thenYield);
+            // Process else region yield (pass thenYieldForElse for type reference)
+            if (!ifOp.getElseRegion().empty()) {
+                Operation *elseYield = ifOp.getElseRegion().back().getTerminator();
+                if (isa<scf::YieldOp>(elseYield)) {
+                    processYieldOperation(elseYield, thenYield);
+                }
+            }
+        } else if (auto forOp = dyn_cast<scf::ForOp>(op)) {
+            // Process scf.for yield terminator
+            Operation *yield = forOp.getBody()->getTerminator();
+            if (isa<scf::YieldOp>(yield)) {
+                processYieldOperation(yield, nullptr);
             }
         }
-    }
-
-    // Process remaining scf.yield operations (not inside scf.if, e.g. scf.for)
-    for (Operation *op : allOps) {
-        if (!isa<scf::YieldOp>(op))
-            continue;
-
-        Operation *parentOp = op->getParentOp();
-        if (dyn_cast_or_null<scf::IfOp>(parentOp))
-            continue;
-
-        processYieldOperation(op, nullptr);
-    }
+    });
 
     return 0;
 }
