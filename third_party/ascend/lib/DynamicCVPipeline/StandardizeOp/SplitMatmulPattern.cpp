@@ -642,25 +642,17 @@ static LogicalResult splitMatmul(linalg::MatmulOp matmulOp, PatternRewriter &rew
         auto ub = forOp.getUpperBound();
 
         Value executed = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, ub, lb);
-        auto ifOp = rewriter.create<scf::IfOp>(
-            loc,
-            executed,
-            [&](OpBuilder &thenBuilder, Location thenLoc) {
-                thenBuilder.create<scf::YieldOp>(thenLoc, splitInfo.outerOutValue);
-            },
-            [&](OpBuilder &elseBuilder, Location elseLoc) {
-                Value zeroValue;
-                if (auto floatType = dyn_cast<FloatType>(elmType)) {
-                    APFloat zeroAPFloat = APFloat::getZero(floatType.getFloatSemantics());
-                    zeroValue = elseBuilder.create<arith::ConstantFloatOp>(elseLoc, zeroAPFloat, floatType).getResult();
-                } else if (auto intType = dyn_cast<IntegerType>(elmType)) {
-                    zeroValue = elseBuilder.create<arith::ConstantIntOp>(elseLoc, 0, intType).getResult();
-                }
-                auto fillOp = elseBuilder.create<linalg::FillOp>(emptyOp.getLoc(), zeroValue, splitInfo.outerOutValue);
-                elseBuilder.create<scf::YieldOp>(elseLoc, fillOp.getResult(0));
-            });
-        newOutValue = ifOp.getResult(0);
-        preservedUser = ifOp;
+        Value zeroValue;
+        if (auto floatType = dyn_cast<FloatType>(elmType)) {
+            APFloat zeroAPFloat = APFloat::getZero(floatType.getFloatSemantics());
+            zeroValue = rewriter.create<arith::ConstantFloatOp>(loc, zeroAPFloat, floatType).getResult();
+        } else if (auto intType = dyn_cast<IntegerType>(elmType)) {
+            zeroValue = rewriter.create<arith::ConstantIntOp>(loc, 0, intType).getResult();
+        }
+        auto fillOp = rewriter.create<linalg::FillOp>(emptyOp.getLoc(), zeroValue, splitInfo.outerOutValue);
+        auto selectOp = rewriter.create<arith::SelectOp>(loc, executed, splitInfo.outerOutValue, fillOp.getResult(0));
+        newOutValue = selectOp.getResult();
+        preservedUser = selectOp;
         forOp->setAttr(CVPipeline::kHIVMMatmulLimitedInCubeAttr, rewriter.getUnitAttr());
     }
 
