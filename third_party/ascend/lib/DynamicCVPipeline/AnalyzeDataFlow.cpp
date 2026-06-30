@@ -33,25 +33,27 @@ using namespace triton;
 
 void AnalyzeDataFlowPass::runOnOperation()
 {
-    ModuleOp module = getOperation();
+  ModuleOp module = getOperation();
 
-    LDBG("Enter AnalyzeDataFlow pass.");
+  LDBG("Enter AnalyzeDataFlow pass.");
 
-    PassManager pm(&getContext(), module.getOperationName());
+  PassManager pm(&getContext(), module.getOperationName());
 
-    pm.addPass(createAnalyzeScopePass());
+  pm.addPass(createAnalyzeNamePass());
 
-    pm.addPass(createAnalyzeArgsPass());
+  pm.addPass(createAnalyzeScopePass());
 
-    pm.addPass(createAnalyzeFlagPass());
+  pm.addPass(createAnalyzeArgsPass());
 
-    pm.addPass(createAnalyzeCubeContolFLowInputChainPass());
+  pm.addPass(createAnalyzeFlagPass());
 
-    if (failed(runPipeline(pm, module))) {
-        signalPassFailure();
-    }
+  pm.addPass(createAnalyzeCubeContolFLowInputChainPass());
 
-    LDBG("Exit AnalyzeDataFlow pass.");
+  if (failed(runPipeline(pm, module))) {
+    signalPassFailure();
+  }
+
+  LDBG("Exit AnalyzeDataFlow pass.");
 }
 
 namespace mlir {
@@ -59,16 +61,17 @@ namespace triton {
 
 std::unique_ptr<OperationPass<ModuleOp>> createAnalyzeDataFlowPass()
 {
-    return std::make_unique<AnalyzeDataFlowPass>();
+  return std::make_unique<AnalyzeDataFlowPass>();
 }
 
 void registerAnalyzeDataFlowPasses()
 {
-    registerPass(createAnalyzeArgsPass);
-    registerPass(createAnalyzeFlagPass);
-    registerPass(createAnalyzeScopePass);
-    registerPass(createAnalyzeDataFlowPass);
-    registerPass(createAnalyzeCubeContolFLowInputChainPass);
+  registerPass(createAnalyzeNamePass);
+  registerPass(createAnalyzeArgsPass);
+  registerPass(createAnalyzeFlagPass);
+  registerPass(createAnalyzeScopePass);
+  registerPass(createAnalyzeDataFlowPass);
+  registerPass(createAnalyzeCubeContolFLowInputChainPass);
 }
 
 } // namespace triton
