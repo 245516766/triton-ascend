@@ -53,6 +53,8 @@ using namespace mlir::triton;
 
 namespace {
 
+static const std::string core_type_attr_name = "ssbuffer.core_type";
+
 bool isInsideNestedLinalgRegion(Operation *op)
 {
     for (Operation *parent = op ? op->getParentOp() : nullptr; parent; parent = parent->getParentOp()) {
@@ -1034,7 +1036,7 @@ bool OpClassifierPass::handleYieldFromElseRegion(std::vector<OpCoreType> &coreTy
     }
 
     // Get the core_type attribute from then region yield
-    auto thenCoreTypeAttr = thenYieldForElse->getAttr("ssbuffer.core_type");
+    auto thenCoreTypeAttr = thenYieldForElse->getAttr(core_type_attr_name);
     if (!thenCoreTypeAttr) {
         return false;
     }
@@ -1146,7 +1148,7 @@ void OpClassifierPass::processYieldOperation(Operation *op, Operation *thenYield
                     }
 
                     // Get core_type from def's attribute (stored as comma-separated multi-value)
-                    auto ctAttr = def->getAttr("ssbuffer.core_type");
+                    auto ctAttr = def->getAttr(core_type_attr_name);
                     if (auto ctStrAttr = dyn_cast<StringAttr>(ctAttr)) {
                         std::string ctStr = ctStrAttr.getValue().str();
                         coreTypes.push_back(parseCoreTypeFromString(ctStr, resultIdx));
@@ -1174,13 +1176,13 @@ void OpClassifierPass::processYieldOperation(Operation *op, Operation *thenYield
     // Write ssbuffer.core_type attribute onto the yield op and its parent scf op
     if (!coreTypes.empty()) {
         std::string coreTypeStr = joinCoreTypes(coreTypes);
-        op->setAttr("ssbuffer.core_type", StringAttr::get(op->getContext(), coreTypeStr));
+        op->setAttr(core_type_attr_name, StringAttr::get(op->getContext(), coreTypeStr));
 
         OpCoreType opCt = (coreTypeStr.find("CUBE") != std::string::npos) ? OP_CUBE_ONLY : OP_VECTOR_ONLY;
         opCoreTypes[op] = opCt;
 
         if (parentOp && llvm::isa<scf::SCFDialect>(parentOp->getDialect())) {
-            parentOp->setAttr("ssbuffer.core_type", StringAttr::get(parentOp->getContext(), coreTypeStr));
+            parentOp->setAttr(core_type_attr_name, StringAttr::get(parentOp->getContext(), coreTypeStr));
             opCoreTypes[parentOp] = opCt;
         }
     }
@@ -1435,7 +1437,7 @@ int OpClassifierPass::stampToIR()
         if (isa<ModuleOp, func::FuncOp>(op))
             continue;
 
-        op->setAttr("ssbuffer.core_type", StringAttr::get(op->getContext(), coreTypeToString(coreType)));
+        op->setAttr(core_type_attr_name, StringAttr::get(op->getContext(), coreTypeToString(coreType)));
     }
 
     return 0;
