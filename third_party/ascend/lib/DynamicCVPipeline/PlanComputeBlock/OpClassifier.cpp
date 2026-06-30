@@ -50,10 +50,9 @@ static constexpr const char *DEBUG_TYPE = "op-classifier";
 #define DBGS() (llvm::dbgs() << '[' << DEBUG_TYPE << "] ")
 #define LOG_DEBUG(...) LLVM_DEBUG(llvm::dbgs() << " [" << DEBUG_TYPE << "] " << __VA_ARGS__)
 using namespace mlir::triton;
+using namespace mlir::CVPipeline;
 
 namespace {
-
-static const std::string core_type_attr_name = "ssbuffer.core_type";
 
 bool isInsideNestedLinalgRegion(Operation *op)
 {
@@ -1036,7 +1035,7 @@ bool OpClassifierPass::handleYieldFromElseRegion(std::vector<OpCoreType> &coreTy
     }
 
     // Get the core_type attribute from then region yield
-    auto thenCoreTypeAttr = thenYieldForElse->getAttr(core_type_attr_name);
+    auto thenCoreTypeAttr = thenYieldForElse->getAttr(kCoreType);
     if (!thenCoreTypeAttr) {
         return false;
     }
@@ -1148,7 +1147,7 @@ void OpClassifierPass::processYieldOperation(Operation *op, Operation *thenYield
                     }
 
                     // Get core_type from def's attribute (stored as comma-separated multi-value)
-                    auto ctAttr = def->getAttr(core_type_attr_name);
+                    auto ctAttr = def->getAttr(kCoreType);
                     if (auto ctStrAttr = dyn_cast<StringAttr>(ctAttr)) {
                         std::string ctStr = ctStrAttr.getValue().str();
                         coreTypes.push_back(parseCoreTypeFromString(ctStr, resultIdx));
@@ -1176,13 +1175,13 @@ void OpClassifierPass::processYieldOperation(Operation *op, Operation *thenYield
     // Write ssbuffer.core_type attribute onto the yield op and its parent scf op
     if (!coreTypes.empty()) {
         std::string coreTypeStr = joinCoreTypes(coreTypes);
-        op->setAttr(core_type_attr_name, StringAttr::get(op->getContext(), coreTypeStr));
+        op->setAttr(kCoreType, StringAttr::get(op->getContext(), coreTypeStr));
 
         OpCoreType opCt = (coreTypeStr.find("CUBE") != std::string::npos) ? OP_CUBE_ONLY : OP_VECTOR_ONLY;
         opCoreTypes[op] = opCt;
 
         if (parentOp && llvm::isa<scf::SCFDialect>(parentOp->getDialect())) {
-            parentOp->setAttr(core_type_attr_name, StringAttr::get(parentOp->getContext(), coreTypeStr));
+            parentOp->setAttr(kCoreType, StringAttr::get(parentOp->getContext(), coreTypeStr));
             opCoreTypes[parentOp] = opCt;
         }
     }
@@ -1437,7 +1436,7 @@ int OpClassifierPass::stampToIR()
         if (isa<ModuleOp, func::FuncOp>(op))
             continue;
 
-        op->setAttr(core_type_attr_name, StringAttr::get(op->getContext(), coreTypeToString(coreType)));
+        op->setAttr(kCoreType, StringAttr::get(op->getContext(), coreTypeToString(coreType)));
     }
 
     return 0;
