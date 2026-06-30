@@ -71,7 +71,7 @@ void StandardizeOpPass::runOnOperation()
 
     auto endTime = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
-    LOG_DEBUG("StandardizeOp pass elapsed time: " << duration << " ms");
+    llvm::errs() << "[StandardizeOp] pass elapsed time: " << duration << " ms\n";
 }
 
 std::unique_ptr<OperationPass<ModuleOp>> createStandardizeOpPass()

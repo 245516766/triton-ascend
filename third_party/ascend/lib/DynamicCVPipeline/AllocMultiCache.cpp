@@ -63,7 +63,7 @@ void AllocMultiCachePass::runOnOperation()
 
     auto endTime = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
-    LDBG("Process successfully, elapsed time: " << duration << " ms");
+    llvm::errs() << "[AllocMultiCache] pass elapsed time: " << duration << " ms\n";
     LDBG(llvm::StringRef("after innerscope:\n") << module << "\n");
 }
 

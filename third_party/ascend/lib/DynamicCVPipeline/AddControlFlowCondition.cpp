@@ -122,7 +122,7 @@ void AddControlFlowConditionPass::runOnOperation()
 
   auto endTime = std::chrono::steady_clock::now();
   auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
-  LLVM_DEBUG(DBGS() << "Exit add controlflow condition pass, elapsed time: " << duration << " ms\n");
+  llvm::errs() << "[AddControlFlowCondition] pass elapsed time: " << duration << " ms\n";
 }
 
 namespace mlir {

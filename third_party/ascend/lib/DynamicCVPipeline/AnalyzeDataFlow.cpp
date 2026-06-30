@@ -58,7 +58,7 @@ void AnalyzeDataFlowPass::runOnOperation()
 
   auto endTime = std::chrono::steady_clock::now();
   auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
-  LLVM_DEBUG(DBGS() << "Exit AnalyzeDataFlow pass, elapsed time: " << duration << " ms\n");
+  llvm::errs() << "[AnalyzeDataFlow] pass elapsed time: " << duration << " ms\n";
 }
 
 namespace mlir {

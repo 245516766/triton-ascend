@@ -61,7 +61,7 @@ void PreCheckAvailablePass::runOnOperation()
 
     auto endTime = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
-    LDBG("Exit PreCheckAvailable pass, elapsed time: " << duration << " ms.");
+    llvm::errs() << "[PreCheckAvailable] pass elapsed time: " << duration << " ms\n";
 }
 
 namespace mlir {

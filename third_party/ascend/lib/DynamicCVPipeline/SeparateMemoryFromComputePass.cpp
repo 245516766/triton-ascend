@@ -64,7 +64,7 @@ void SeparateMemoryFromComputePass::runOnOperation()
 
   auto endTime = std::chrono::steady_clock::now();
   auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
-  LLVM_DEBUG(DBGS() << "Process successfully, elapsed time: " << duration << " ms\n");
+  llvm::errs() << "[SeparateMemoryFromCompute] pass elapsed time: " << duration << " ms\n";
 }
 
 namespace mlir {

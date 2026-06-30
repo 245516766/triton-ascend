@@ -74,7 +74,7 @@ void PlanComputeBlockPass::runOnOperation()
 
     auto endTime = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
-    LOG_DEBUG("Process successfully, elapsed time: " << duration << " ms\n");
+    llvm::errs() << "[PlanComputeBlock] pass elapsed time: " << duration << " ms\n";
 }
 
 namespace mlir {
