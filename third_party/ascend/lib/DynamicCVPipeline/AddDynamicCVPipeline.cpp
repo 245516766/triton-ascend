@@ -23,6 +23,8 @@
 #include "llvm/Support/Debug.h"
 
 #include "mlir/IR/BuiltinOps.h"
+
+#include <chrono>
 #include "mlir/Pass/PassManager.h"
 
 #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition.h"
@@ -87,16 +89,24 @@ void AddDynamicCVPipelinePass::runOnOperation()
     ModuleOp moduleBackup(moduleOp->clone());
     PassManager pm(&getContext(), moduleOp.getOperationName());
 
-    pm.addPass(createPreCheckAvailablePass());
-    pm.addPass(createStandardizeOpPass());
-    pm.addPass(createPlanComputeBlockPass());
-    pm.addPass(createComputeBlockOptPass());
-    pm.addPass(createSplitDataflowPass());
-    pm.addPass(createAnalyzeDataFlowPass());
-    pm.addPass(createSeparateMemoryFromComputePass());
-    pm.addPass(createAllocMultiCachePass());
-    pm.addPass(createAddControlFlowConditionPass());
-    pm.addPass(createRemoveSsbufAttrPass());
+    auto addTimedPass = [&](auto passCreator, const char *passName) {
+        auto start = std::chrono::steady_clock::now();
+        pm.addPass(passCreator());
+        auto end = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration<double, std::milli>(end - start).count();
+        LLVM_DEBUG(DBGS() << "[" << passName << "] pass elapsed time: " << duration << " ms\n");
+    };
+
+    addTimedPass(createPreCheckAvailablePass, "PreCheckAvailable");
+    addTimedPass(createStandardizeOpPass, "StandardizeOp");
+    addTimedPass(createPlanComputeBlockPass, "PlanComputeBlock");
+    addTimedPass(createComputeBlockOptPass, "ComputeBlockOpt");
+    addTimedPass(createSplitDataflowPass, "SplitDataflow");
+    addTimedPass(createAnalyzeDataFlowPass, "AnalyzeDataFlow");
+    addTimedPass(createSeparateMemoryFromComputePass, "SeparateMemoryFromCompute");
+    addTimedPass(createAllocMultiCachePass, "AllocMultiCache");
+    addTimedPass(createAddControlFlowConditionPass, "AddControlFlowCondition");
+    addTimedPass(createRemoveSsbufAttrPass, "RemoveSsbufAttr");
 
     if (failed(runPipeline(pm, moduleOp))) {
         auto errCodeAttr = moduleOp->getAttrOfType<IntegerAttr>(CVPipeline::ERRCODE_ATTR);
