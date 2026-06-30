@@ -24,7 +24,7 @@
 #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition/CloneOps.h"
 #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition/CreateIfOps.h"
 #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition/InitDependentMap.h"
- #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition/ProcessArgs.h"
+#include "ascend/include/DynamicCVPipeline/AddControlFlowCondition/ProcessArgs.h"
 #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition/UpdateConditionInfo.h"
 #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition/UpdateForOps.h"
 #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition/UpdateLoopIterTimes.h"
@@ -32,6 +32,8 @@
 #include "bishengir/Dialect/Scope/IR/Scope.h"
 #include "mlir/Pass/PassManager.h"
 #include "llvm/Support/Debug.h"
+
+#include <chrono>
 
 static constexpr const char *DEBUG_TYPE = "AddControlFlowCondition";
 #define DBGS() (llvm::dbgs() << '[' << DEBUG_TYPE << "] ")
@@ -77,6 +79,7 @@ void AddControlFlowConditionPass::runOnOperation()
   PassManager pm(&getContext(), module.getOperationName());
   ControlFlowConditionInfo info;
 
+  auto startTime = std::chrono::steady_clock::now();
   // Step0: Clone ops in vector/cube to ensure that each block_id has its own
   // ops without sharing
   pm.addPass(createCloneOpsPass());
@@ -85,7 +88,7 @@ void AddControlFlowConditionPass::runOnOperation()
   std::unique_ptr<InitDependentMapPass> initDependentMapPass(new InitDependentMapPass());
   initDependentMapPass->setConditionInfo(&info);
   pm.addPass(std::move(initDependentMapPass));
-  
+
   // Step2: Process shared iter_args in for ops to eliminate arg sharing across block_ids
   std::unique_ptr<ProcessArgsPass> processArgsPass(new ProcessArgsPass());
   processArgsPass->setConditionInfo(&info);
@@ -117,7 +120,9 @@ void AddControlFlowConditionPass::runOnOperation()
     signalPassFailure();
   }
 
-  LDBG("Exit add controlflow condition pass.");
+  auto endTime = std::chrono::steady_clock::now();
+  auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+  LLVM_DEBUG(DBGS() << "Exit add controlflow condition pass, elapsed time: " << duration << " ms\n");
 }
 
 namespace mlir {

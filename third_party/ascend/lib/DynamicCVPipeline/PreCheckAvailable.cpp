@@ -29,6 +29,8 @@
 #include "ascend/include/DynamicCVPipeline/PreCheckAvailable.h"
 #include "ascend/include/DynamicCVPipeline/Common/Utils.h"
 
+#include <chrono>
+
 using namespace mlir;
 using namespace triton;
 
@@ -47,6 +49,7 @@ void PreCheckAvailablePass::runOnOperation()
     LDBG("Enter PreCheckAvailable pass.");
     PassManager pm(&getContext(), module.getOperationName());
 
+    auto startTime = std::chrono::steady_clock::now();
     LDBG("Before PreCheck:\n" << module);
     pm.addPass(createPreCheckBlacklistPass());
     pm.addPass(createPreCheckMatmulPass());
@@ -56,7 +59,9 @@ void PreCheckAvailablePass::runOnOperation()
         signalPassFailure();
     }
 
-    LDBG("Exit PreCheckAvailable pass.");
+    auto endTime = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+    LDBG("Exit PreCheckAvailable pass, elapsed time: " << duration << " ms.");
 }
 
 namespace mlir {

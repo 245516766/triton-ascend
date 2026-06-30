@@ -27,6 +27,8 @@
 #include "ascend/include/DynamicCVPipeline/SeparateMemoryFromCompute/AddMultiBufferToGMLoadPass.h"
 #include "ascend/include/DynamicCVPipeline/SeparateMemoryFromCompute/AsyncLoadHoistingPass.h"
 
+#include <chrono>
+
 static constexpr const char *DEBUG_TYPE = "separate-memory-from-compute";
 #define DBGS() (llvm::dbgs() << '[' << DEBUG_TYPE << "] ")
 #define LDBG(X) LLVM_DEBUG(DBGS() << (X) << "\n")
@@ -48,6 +50,7 @@ void SeparateMemoryFromComputePass::runOnOperation()
   OpPassManager pm(module.getOperationName());
   LDBG("Enter SeparateMemoryFromCompute pass");
 
+  auto startTime = std::chrono::steady_clock::now();
   // Step 1: Hoist memory operations out of compute blocks
   pm.addPass(createAsyncLoadHoistingPass());
 
@@ -59,7 +62,9 @@ void SeparateMemoryFromComputePass::runOnOperation()
     signalPassFailure();
   }
 
-  LDBG("Process successfully");
+  auto endTime = std::chrono::steady_clock::now();
+  auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+  LLVM_DEBUG(DBGS() << "Process successfully, elapsed time: " << duration << " ms\n");
 }
 
 namespace mlir {

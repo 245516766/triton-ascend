@@ -24,6 +24,8 @@
 #include "mlir/Pass/PassManager.h"
 #include "llvm/Support/Debug.h"
 
+#include <chrono>
+
 static constexpr const char *DEBUG_TYPE = "analyze-data-flow";
 #define DBGS() (llvm::dbgs() << '[' << DEBUG_TYPE << "] ")
 #define LDBG(X) LLVM_DEBUG(DBGS() << (X) << "\n")
@@ -39,6 +41,7 @@ void AnalyzeDataFlowPass::runOnOperation()
 
   PassManager pm(&getContext(), module.getOperationName());
 
+  auto startTime = std::chrono::steady_clock::now();
   pm.addPass(createAnalyzeNamePass());
 
   pm.addPass(createAnalyzeScopePass());
@@ -53,7 +56,9 @@ void AnalyzeDataFlowPass::runOnOperation()
     signalPassFailure();
   }
 
-  LDBG("Exit AnalyzeDataFlow pass.");
+  auto endTime = std::chrono::steady_clock::now();
+  auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+  LLVM_DEBUG(DBGS() << "Exit AnalyzeDataFlow pass, elapsed time: " << duration << " ms\n");
 }
 
 namespace mlir {

@@ -23,6 +23,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/LogicalResult.h"
 #include <memory>
+#include <chrono>
 
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
@@ -46,6 +47,8 @@ void StandardizeOpPass::runOnOperation()
     auto op = getOperation();
     LOG_DEBUG("Input mlir:\n" << op);
     OpPassManager pm(op.getOperationName());
+
+    auto startTime = std::chrono::steady_clock::now();
     pm.addPass(createPatternMatchRewritePass());
 
     if (llvm::failed(runPipeline(pm, op))) {
@@ -65,6 +68,10 @@ void StandardizeOpPass::runOnOperation()
         CVPipeline::setFallbackAttr(op);
         signalPassFailure();
     }
+
+    auto endTime = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+    LOG_DEBUG("StandardizeOp pass elapsed time: " << duration << " ms");
 }
 
 std::unique_ptr<OperationPass<ModuleOp>> createStandardizeOpPass()

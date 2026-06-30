@@ -25,6 +25,8 @@
 #include "ascend/include/DynamicCVPipeline/Common/Utils.h"
 #include "mlir/Pass/PassManager.h"
 
+#include <chrono>
+
 #include "DynamicCVPipeline/PlanComputeBlock/Passes.h"
 #include "DynamicCVPipeline/PlanComputeBlock/PlanCubeBlockPass.h"
 #include "DynamicCVPipeline/PlanComputeBlock/ReorderOpsByBlockId.h"
@@ -45,6 +47,8 @@ void PlanComputeBlockPass::runOnOperation()
     ModuleOp module = getOperation();
     OpPassManager pm(module.getOperationName());
     LOG_DEBUG("Enter pass.\n");
+
+    auto startTime = std::chrono::steady_clock::now();
 
     // Step 1: Run OpClassifierPass to classify operations
     pm.addPass(createOpClassifierPass());
@@ -68,7 +72,9 @@ void PlanComputeBlockPass::runOnOperation()
         return;
     }
 
-    LOG_DEBUG("Process successfully\n");
+    auto endTime = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+    LOG_DEBUG("Process successfully, elapsed time: " << duration << " ms\n");
 }
 
 namespace mlir {

@@ -32,6 +32,8 @@
 #include "mlir/Pass/PassManager.h"
 #include "llvm/Support/Debug.h"
 
+#include <chrono>
+
 static constexpr const char *DEBUG_TYPE = "SplitDataflow";
 #define DBGS() (llvm::dbgs() << '[' << DEBUG_TYPE << "] ")
 #define LDBG(X) LLVM_DEBUG(DBGS() << (X) << "\n")
@@ -46,6 +48,7 @@ void SplitDataflowPass::runOnOperation()
     OpPassManager pm(module.getOperationName());
     LDBG("Enter pass.");
 
+    auto startTime = std::chrono::steady_clock::now();
     // Step 1: Add block_id for control flow operations
     pm.addPass(createAddBlockIdForControlOpsPass());
 
@@ -73,7 +76,9 @@ void SplitDataflowPass::runOnOperation()
         signalPassFailure();
     }
 
-    LDBG("Process successfully");
+    auto endTime = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+    LLVM_DEBUG(DBGS() << "Process successfully, elapsed time: " << duration << " ms\n");
 }
 
 namespace mlir {

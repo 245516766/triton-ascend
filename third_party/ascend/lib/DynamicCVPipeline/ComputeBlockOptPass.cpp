@@ -28,6 +28,7 @@
 #include "ascend/include/DynamicCVPipeline/PlanComputeBlockPass.h"
 
 #include "mlir/Pass/PassManager.h"
+#include <chrono>
 
 using namespace mlir;
 using namespace triton;
@@ -38,6 +39,7 @@ void ComputeBlockOptPass::runOnOperation()
 
     OpPassManager pm(module.getOperationName());
 
+    auto startTime = std::chrono::steady_clock::now();
     /**
         First, perform UnifyAllocBlock to merge load semantic operations into a unified block.
         Then, use UBUsageOpt to find the smallest UB dependency location and divide the computation blocks.
@@ -58,6 +60,10 @@ void ComputeBlockOptPass::runOnOperation()
         signalPassFailure();
         return;
     }
+
+    auto endTime = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+    llvm::errs() << "[ComputeBlockOpt] pass elapsed time: " << duration << " ms\n";
 }
 
 namespace mlir {

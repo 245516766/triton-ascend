@@ -27,6 +27,8 @@
 #include "mlir/Pass/PassManager.h"
 #include "llvm/Support/Debug.h"
 
+#include <chrono>
+
 static constexpr const char *DEBUG_TYPE = "AllocMultiCache";
 #define DBGS() (llvm::dbgs() << '[' << DEBUG_TYPE << "] ")
 #define LDBG(...) \
@@ -46,6 +48,8 @@ void AllocMultiCachePass::runOnOperation()
     OpPassManager pm(module.getOperationName());
     LDBG("Enter pass.");
     LDBG("before innerscope:\n" << module << "\n");
+
+    auto startTime = std::chrono::steady_clock::now();
     // Step 1:Inner multibuffer
     pm.addPass(createAddMultiBufferInnerScopePass());
 
@@ -56,8 +60,10 @@ void AllocMultiCachePass::runOnOperation()
         module->emitError() << "[" << DEBUG_TYPE << "] Pass failed!";
         signalPassFailure();
     }
-    
-    LDBG("Process successfully");
+
+    auto endTime = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+    LDBG("Process successfully, elapsed time: " << duration << " ms");
     LDBG(llvm::StringRef("after innerscope:\n") << module << "\n");
 }
 
