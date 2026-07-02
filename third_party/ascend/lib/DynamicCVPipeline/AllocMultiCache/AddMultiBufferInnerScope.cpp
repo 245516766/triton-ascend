@@ -1034,7 +1034,7 @@ static int insertConsumerLogic(OpBuilder &builder, Value depVal, SmallVector<Buf
         Operation *consumerOp = handleSingleBufferConsumer(builder, loc, buffers);
         outIfOps.push_back(consumerOp);
         if (groupId >= 0) {
-            consumerOp->setAttr("ssbuffer.intraDeps", builder.getI32ArrayAttr({groupId, 0}));
+            consumerOp->setAttr(kIntraDeps, builder.getI32ArrayAttr({groupId, 0}));
         }
         return 0;
     }
@@ -1056,7 +1056,7 @@ static int insertConsumerLogic(OpBuilder &builder, Value depVal, SmallVector<Buf
         return ret;
     }
     if (groupId >= 0 && !outIfOps.empty()) {
-        outIfOps.front()->setAttr("ssbuffer.intraDeps", builder.getI32ArrayAttr({groupId, 0}));
+        outIfOps.front()->setAttr(kIntraDeps, builder.getI32ArrayAttr({groupId, 0}));
     }
     return 0;
 }
@@ -1071,14 +1071,14 @@ static void addBlockAttrForOps(SmallVector<Operation *> &newOps, int blockId, Op
 // Add dep_mark attribute to operation
 static void addDepMarkAttr(Operation *op, int depMark, OpBuilder &builder)
 {
-    if (auto existingAttr = op->getAttrOfType<mlir::ArrayAttr>("ssbuffer.dep_mark")) {
+    if (auto existingAttr = op->getAttrOfType<mlir::ArrayAttr>(kDepMark)) {
         SmallVector<int> marks;
         for (auto attr : existingAttr)
             marks.push_back(cast<mlir::IntegerAttr>(attr).getInt());
         marks.push_back(depMark);
-        op->setAttr("ssbuffer.dep_mark", builder.getI32ArrayAttr(marks));
+        op->setAttr(kDepMark, builder.getI32ArrayAttr(marks));
     } else {
-        op->setAttr("ssbuffer.dep_mark", builder.getI32ArrayAttr({depMark}));
+        op->setAttr(kDepMark, builder.getI32ArrayAttr({depMark}));
     }
 }
 
@@ -1269,7 +1269,7 @@ static int processMultiRegionAllYields(OpBuilder &consumedBuilder, Value depVal,
                 return -1;
 
             if (groupId >= 0) {
-                selectIf->setAttr("ssbuffer.intraDeps", consumedBuilder.getI32ArrayAttr({groupId, 0}));
+                selectIf->setAttr(kIntraDeps, consumedBuilder.getI32ArrayAttr({groupId, 0}));
             }
 
             operand.set(selectIf->getResult(0));
@@ -1614,7 +1614,7 @@ static BufferMap insertBuffersBeforeFor(mlir::scf::ForOp forOp, SmallVector<Valu
             auto casted =
                 insertedBuffers.create<memref::MemorySpaceCastOp>(forOp.getLoc(), genericType, allocOp.getResult());
 
-            casted->setAttr("ssbuffer.intraDeps", insertedBuffers.getI32ArrayAttr({groupId, 1}));
+            casted->setAttr(kIntraDeps, insertedBuffers.getI32ArrayAttr({groupId, 1}));
 
             buffers.push_back({casted.getResult(), casted.getResult()});
         }
