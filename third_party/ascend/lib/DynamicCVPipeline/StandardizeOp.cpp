@@ -25,6 +25,7 @@
 #include <memory>
 #include <chrono>
 
+#include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
 
 #include "ascend/include/DynamicCVPipeline/StandardizeOp.h"
@@ -45,10 +46,12 @@ void StandardizeOpPass::runOnOperation()
 {
     auto op = getOperation();
     LOG_DEBUG("Input mlir:\n" << op);
+    OpPassManager pm(op.getOperationName());
 
     auto startTime = std::chrono::steady_clock::now();
+    pm.addPass(createPatternMatchRewritePass());
 
-    if (llvm::failed(runStandardizeOpRewrites(op))) {
+    if (llvm::failed(runPipeline(pm, op))) {
         LOG_DEBUG("Pipeline Failed!");
         signalPassFailure();
     }
