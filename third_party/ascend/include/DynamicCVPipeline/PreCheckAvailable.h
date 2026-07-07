@@ -85,9 +85,6 @@ std::unique_ptr<OperationPass<ModuleOp>> createPreCheckMatmulPass();
 std::unique_ptr<OperationPass<ModuleOp>> createPreCheckAvailablePass();
 void registerPreCheckAvailablePasses();
 
-llvm::LogicalResult runPreCheckBlacklist(ModuleOp module);
-llvm::LogicalResult runPreCheckMatmul(ModuleOp module);
-
 } // namespace triton
 } // namespace mlir
 

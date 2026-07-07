@@ -23,6 +23,7 @@
 #include "llvm/Support/Debug.h"
 
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
 
 #include "ascend/include/DynamicCVPipeline/PreCheckAvailable.h"
@@ -46,11 +47,14 @@ void PreCheckAvailablePass::runOnOperation()
     ModuleOp module = getOperation();
 
     LDBG("Enter PreCheckAvailable pass.");
+    PassManager pm(&getContext(), module.getOperationName());
 
     auto startTime = std::chrono::steady_clock::now();
     LDBG("Before PreCheck:\n" << module);
+    pm.addPass(createPreCheckBlacklistPass());
+    pm.addPass(createPreCheckMatmulPass());
 
-    if (llvm::failed(runPreCheckBlacklist(module)) || llvm::failed(runPreCheckMatmul(module))) {
+    if (failed(runPipeline(pm, module))) {
         CVPipeline::setFallbackAttr(module);
         signalPassFailure();
     }
