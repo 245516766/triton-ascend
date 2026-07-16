@@ -30,13 +30,13 @@
 #include "ascend/include/DynamicCVPipeline/AnalyzeDataFlow.h"
 #include "ascend/include/DynamicCVPipeline/Common/Utils.h"
 #include "ascend/include/DynamicCVPipeline/Passes.h"
-#include "ascend/include/DynamicCVPipeline/StandardizeOp.h"
 #include "ascend/include/DynamicCVPipeline/PlanComputeBlock/Passes.h"
 #include "ascend/include/DynamicCVPipeline/PlanComputeBlockPass.h"
 #include "ascend/include/DynamicCVPipeline/PreCheckAvailable.h"
 #include "ascend/include/DynamicCVPipeline/RemoveAttributes.h"
 #include "ascend/include/DynamicCVPipeline/SeparateMemoryFromComputePass.h"
 #include "ascend/include/DynamicCVPipeline/SplitDataflowPass.h"
+#include "ascend/include/DynamicCVPipeline/StandardizeOp.h"
 
 static constexpr const char *DEBUG_TYPE = "AddDynamicCVPipeline";
 #define DBGS() (llvm::dbgs() << '[' << DEBUG_TYPE << "] ")
@@ -66,9 +66,10 @@ void restoreModuleFromBackup(ModuleOp moduleOp, ModuleOp moduleBackup)
 
 } // namespace
 
-AddDynamicCVPipelinePass::AddDynamicCVPipelinePass(
-    const AddDynamicCVPipelineOptions &options)
-    : AddDynamicCVPipelineBase(options) {}
+AddDynamicCVPipelinePass::AddDynamicCVPipelinePass(const AddDynamicCVPipelineOptions &options)
+    : AddDynamicCVPipelineBase(options)
+{
+}
 
 void AddDynamicCVPipelinePass::runOnOperation()
 {
@@ -101,8 +102,7 @@ void AddDynamicCVPipelinePass::runOnOperation()
     if (failed(runPipeline(pm, moduleOp))) {
         auto errCodeAttr = moduleOp->getAttrOfType<IntegerAttr>(CVPipeline::ERRCODE_ATTR);
         if (!errCodeAttr) {
-            moduleOp->emitWarning() << "[" << DEBUG_TYPE << "] "
-                << "Pass failed; fallback to compilation without dynamic CV pipeline.";
+            LDBG("Pass failed; fallback to compilation without dynamic CV pipeline.\n");
         }
 
         int errCode = errCodeAttr ? static_cast<int>(errCodeAttr.getInt()) : CVPipeline::ERRCODE_FAILED;
@@ -116,8 +116,8 @@ void AddDynamicCVPipelinePass::runOnOperation()
     LDBG("Process successfully");
 }
 
-std::unique_ptr<OperationPass<ModuleOp>> mlir::triton::createAddDynamicCVPipelinePass(
-    const AddDynamicCVPipelineOptions &options)
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::triton::createAddDynamicCVPipelinePass(const AddDynamicCVPipelineOptions &options)
 {
     return std::make_unique<AddDynamicCVPipelinePass>(options);
 }

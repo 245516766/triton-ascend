@@ -64,7 +64,7 @@ llvm::LogicalResult verifyOpBlockId(Operation *op)
             default:
                 errorPass = "previous passes";
         }
-        LOG_DEBUG("block id should not be negative! Please report to " << errorPass);
+        LOG_DEBUG("block id should not be negative! Please report to " << errorPass << "\n");
         return llvm::failure();
     }
 
@@ -120,11 +120,12 @@ bool isVectorOnlyOp(Operation *op)
 
 bool isScfOp(Operation *op)
 {
-  return llvm::isa<scf::SCFDialect>(op->getDialect());
+    return llvm::isa<scf::SCFDialect>(op->getDialect());
 }
 
 // Check nextOp is only user of preOp
-bool isOnlyDirectlyUse(Operation *preOp, Operation *nextOp, const CVPipeline::MemoryDependenceGraph &memGraph) {
+bool isOnlyDirectlyUse(Operation *preOp, Operation *nextOp, const CVPipeline::MemoryDependenceGraph &memGraph)
+{
     if (!preOp || !nextOp) {
         return false;
     }

@@ -161,7 +161,7 @@ FailureOr<scf::ForOp> pruneDeadIterArgs(OpBuilder &builder, scf::ForOp forOp, un
 {
     unsigned numIter = forOp.getNumResults();
     if (candidateCount > numIter) {
-        LOG_DEBUG("candidate iter_arg count " << candidateCount << " exceeds total iter_arg count " << numIter);
+        LOG_DEBUG("candidate iter_arg count " << candidateCount << " exceeds total iter_arg count " << numIter << "\n");
         return failure();
     }
 
@@ -205,7 +205,8 @@ void eraseDeadBodyOps(Block *body)
             continue;
         }
         if (mlir::isMemoryEffectFree(&op) &&
-            llvm::all_of(op.getResults(), [](Value result) { return result.use_empty(); })) {
+            llvm::all_of(op.getResults(), [](Value result) { return result.use_empty(); }))
+        {
             enqueueIfDead(&op);
         }
     }
@@ -231,7 +232,8 @@ void eraseDeadBodyOps(Block *body)
 
         for (Operation *defOp : operandDefs) {
             if (mlir::isMemoryEffectFree(defOp) &&
-                llvm::all_of(defOp->getResults(), [](Value result) { return result.use_empty(); })) {
+                llvm::all_of(defOp->getResults(), [](Value result) { return result.use_empty(); }))
+            {
                 enqueueIfDead(defOp);
             }
         }
@@ -613,15 +615,14 @@ FailureOr<SmallVector<Value>> collectLinearIterArgDeltas(const ExtendedForInfo &
     }
     auto numOrig = static_cast<unsigned>(info.numOrig);
     if (info.oldBody->getNumArguments() < numOrig + kForBodyIterArgOffset) {
-        LOG_DEBUG("old loop body has " << info.oldBody->getNumArguments()
-                  << " arguments, expected at least " << (numOrig + kForBodyIterArgOffset));
+        LOG_DEBUG("old loop body has " << info.oldBody->getNumArguments() << " arguments, expected at least "
+                                       << (numOrig + kForBodyIterArgOffset));
         return failure();
     }
 
     auto oldYieldOp = cast<scf::YieldOp>(info.oldBody->getTerminator());
     if (oldYieldOp->getNumOperands() < numOrig) {
-        LOG_DEBUG("old loop yield has " << oldYieldOp->getNumOperands()
-                 << " operands, expected at least " << numOrig);
+        LOG_DEBUG("old loop yield has " << oldYieldOp->getNumOperands() << " operands, expected at least " << numOrig);
         return failure();
     }
 
@@ -629,7 +630,8 @@ FailureOr<SmallVector<Value>> collectLinearIterArgDeltas(const ExtendedForInfo &
     for (unsigned iterArgIdx = 0; iterArgIdx < numOrig; ++iterArgIdx) {
         Value delta;
         if (getLinearIterArgDelta(info.oldBody->getArgument(iterArgIdx + kForBodyIterArgOffset),
-                                  oldYieldOp->getOperand(iterArgIdx), forOp, delta)) {
+                                  oldYieldOp->getOperand(iterArgIdx), forOp, delta))
+        {
             iterArgDeltas[iterArgIdx] = delta;
         }
     }
@@ -645,9 +647,8 @@ LogicalResult replaceOriginalForResults(scf::ForOp oldForOp, scf::ForOp newForOp
 
     auto numOrigResults = static_cast<unsigned>(numOrig);
     if (oldForOp.getNumResults() < numOrigResults || newForOp.getNumResults() < numOrigResults) {
-        LOG_DEBUG("cannot replace " << numOrigResults
-                 << " loop results; old loop has " << oldForOp.getNumResults() << ", new loop has "
-                 << newForOp.getNumResults());
+        LOG_DEBUG("cannot replace " << numOrigResults << " loop results; old loop has " << oldForOp.getNumResults()
+                                    << ", new loop has " << newForOp.getNumResults());
         return failure();
     }
 
@@ -702,10 +703,10 @@ LogicalResult applyMultiBufferToForLoop(ForBufferCtx &context, const llvm::Dense
         return failure();
     }
 
-    LogicalResult emitBodyStatus = emitMultiBufferLoopBody(
-        builder, loc, context.groups, info, groupValues.indexOnes, groupValues.slotConsts, groupValues.depthConsts,
-        allCtxForOps, loopValues.tripCount, loopValues.lowerBound, loopValues.step, groupValues.trueFlags,
-        *iterArgDeltas, forOp);
+    LogicalResult emitBodyStatus =
+        emitMultiBufferLoopBody(builder, loc, context.groups, info, groupValues.indexOnes, groupValues.slotConsts,
+                                groupValues.depthConsts, allCtxForOps, loopValues.tripCount, loopValues.lowerBound,
+                                loopValues.step, groupValues.trueFlags, *iterArgDeltas, forOp);
     if (failed(emitBodyStatus)) {
         return failure();
     }

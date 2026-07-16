@@ -20,9 +20,9 @@
  * THE SOFTWARE.
  */
 
+#include "ascend/include/DynamicCVPipeline/Common/BufferCountManager.h"
 #include "ascend/include/DynamicCVPipeline/DecoupleComputeAndMemory/AddMultiBufferToGMLoadInternal.h"
 #include "ascend/include/DynamicCVPipeline/DecoupleComputeAndMemory/AddMultiBufferToGMLoadPass.h"
-#include "ascend/include/DynamicCVPipeline/Common/BufferCountManager.h"
 
 using namespace mlir;
 using namespace triton;
@@ -151,7 +151,7 @@ void AddMultiBufferToGMLoadPass::runOnOperation()
     // Step 3: Transform each for loop with multi-buffer logic
     allCtxForOps_.clear();
     if (failed(applyMultiBufferToGMLoadLoops())) {
-        LOG_DEBUG("Step 3 applyMultiBufferToGMLoadLoops failed");
+        LOG_DEBUG("Step 3 applyMultiBufferToGMLoadLoops failed\n");
         signalPassFailure();
         return;
     }
