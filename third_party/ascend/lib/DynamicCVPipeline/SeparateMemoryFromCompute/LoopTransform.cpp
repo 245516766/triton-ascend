@@ -161,8 +161,7 @@ FailureOr<scf::ForOp> pruneDeadIterArgs(OpBuilder &builder, scf::ForOp forOp, un
 {
     unsigned numIter = forOp.getNumResults();
     if (candidateCount > numIter) {
-        forOp.emitError() << "[" << DEBUG_TYPE << "] candidate iter_arg count " << candidateCount
-                          << " exceeds total iter_arg count " << numIter;
+        LOG_DEBUG("candidate iter_arg count " << candidateCount << " exceeds total iter_arg count " << numIter);
         return failure();
     }
 
@@ -608,20 +607,20 @@ GroupInvariantValues emitGroupInvariantValues(OpBuilder &builder, Location loc, 
 FailureOr<SmallVector<Value>> collectLinearIterArgDeltas(const ExtendedForInfo &info, scf::ForOp forOp)
 {
     if (info.numOrig < 0) {
-        forOp.emitError() << "[" << DEBUG_TYPE << "] original iter_arg count is negative: " << info.numOrig;
+        LOG_DEBUG("original iter_arg count is negative: " << info.numOrig);
         return failure();
     }
     auto numOrig = static_cast<unsigned>(info.numOrig);
     if (info.oldBody->getNumArguments() < numOrig + kForBodyIterArgOffset) {
-        forOp.emitError() << "[" << DEBUG_TYPE << "] old loop body has " << info.oldBody->getNumArguments()
-                          << " arguments, expected at least " << (numOrig + kForBodyIterArgOffset);
+        LOG_DEBUG("old loop body has " << info.oldBody->getNumArguments()
+                  << " arguments, expected at least " << (numOrig + kForBodyIterArgOffset));
         return failure();
     }
 
     auto oldYieldOp = cast<scf::YieldOp>(info.oldBody->getTerminator());
     if (oldYieldOp->getNumOperands() < numOrig) {
-        forOp.emitError() << "[" << DEBUG_TYPE << "] old loop yield has " << oldYieldOp->getNumOperands()
-                          << " operands, expected at least " << numOrig;
+        LOG_DEBUG("old loop yield has " << oldYieldOp->getNumOperands()
+                 << " operands, expected at least " << numOrig);
         return failure();
     }
 
@@ -639,15 +638,15 @@ FailureOr<SmallVector<Value>> collectLinearIterArgDeltas(const ExtendedForInfo &
 LogicalResult replaceOriginalForResults(scf::ForOp oldForOp, scf::ForOp newForOp, int numOrig)
 {
     if (numOrig < 0) {
-        oldForOp.emitError() << "[" << DEBUG_TYPE << "] original result count is negative: " << numOrig;
+        LOG_DEBUG("original result count is negative: " << numOrig);
         return failure();
     }
 
     auto numOrigResults = static_cast<unsigned>(numOrig);
     if (oldForOp.getNumResults() < numOrigResults || newForOp.getNumResults() < numOrigResults) {
-        oldForOp.emitError() << "[" << DEBUG_TYPE << "] cannot replace " << numOrigResults
-                             << " loop results; old loop has " << oldForOp.getNumResults() << ", new loop has "
-                             << newForOp.getNumResults();
+        LOG_DEBUG("cannot replace " << numOrigResults
+                 << " loop results; old loop has " << oldForOp.getNumResults() << ", new loop has "
+                 << newForOp.getNumResults());
         return failure();
     }
 
@@ -660,7 +659,7 @@ LogicalResult replaceOriginalForResults(scf::ForOp oldForOp, scf::ForOp newForOp
 LogicalResult finalizeMultiBufferLoop(OpBuilder &builder, scf::ForOp newForOp, int numOrig)
 {
     if (numOrig < 0) {
-        newForOp.emitError() << "[" << DEBUG_TYPE << "] original iter_arg count is negative: " << numOrig;
+        LOG_DEBUG("original iter_arg count is negative: " << numOrig);
         return failure();
     }
 

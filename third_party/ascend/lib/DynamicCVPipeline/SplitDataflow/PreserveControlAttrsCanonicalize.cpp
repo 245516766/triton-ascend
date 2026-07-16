@@ -156,7 +156,7 @@ void mlir::triton::PreserveControlAttrsCanonicalizePass::runOnOperation()
     if (failed(applyPatternsAndFoldGreedily(getOperation(),
                                             FrozenRewritePatternSet(std::move(patterns)),
                                             config))) {
-        getOperation()->emitError("PreserveControlAttrsCanonicalizePass failed");
+        LOG_DEBUG("PreserveControlAttrsCanonicalizePass failed");
         signalPassFailure();
         return;
     }

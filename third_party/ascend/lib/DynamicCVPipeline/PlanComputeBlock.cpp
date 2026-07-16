@@ -62,7 +62,7 @@ void PlanComputeBlockPass::runOnOperation()
         auto errCodeAttr = module->getAttrOfType<IntegerAttr>(CVPipeline::ERRCODE_ATTR);
         int errCode = errCodeAttr ? static_cast<int>(errCodeAttr.getInt()) : CVPipeline::ERRCODE_FAILED;
         if (errCode != CVPipeline::ERRCODE_IGNORED) {
-            module->emitError() << "[" << DEBUG_TYPE << "] Pass failed!";
+            LOG_DEBUG("Pass failed!");
         }
         signalPassFailure();
         return;

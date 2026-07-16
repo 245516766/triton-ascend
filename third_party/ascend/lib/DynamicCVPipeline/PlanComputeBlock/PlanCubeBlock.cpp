@@ -354,7 +354,7 @@ llvm::LogicalResult TopologicalPartitionPlanner::removeReadyNonCubeOps()
     }
     if (!mapsAreDiff(indegreeBefore, indegree) && beforeVisitedSize == bypassVisited.size()) {
         if (Operation *parentOp = block->getParentOp()) {
-            parentOp->emitError("PlanCubeBlock cannot make progress while scheduling cube operations");
+            LOG_DEBUG("PlanCubeBlock cannot make progress while scheduling cube operations");
         }
         dumpQueueAndIndegreeInfo();
         return llvm::failure();
@@ -375,27 +375,22 @@ bool TopologicalPartitionPlanner::canExpandTo(Operation *op)
 // Encountered error. Need to print failure reason, so no need for LLVM_DEBUG
 void TopologicalPartitionPlanner::dumpQueueAndIndegreeInfo()
 {
-    // simply print a debug header in a new line
-    auto errs = []() -> llvm::raw_ostream& {
-        return llvm::errs() << "\n[" << DEBUG_TYPE << "] ";
-    };
+    LOG_DEBUG("\nfailed to make progress while planning cube blocks.");
+    LOG_DEBUG("remaining cube count: " << nonAssignedCubeCnt);
 
-    errs() << "failed to make progress while planning cube blocks.";
-    errs() << "remaining cube count: " << nonAssignedCubeCnt;
-
-    errs() << "ready queue";
+    LOG_DEBUG("ready queue");
     if (queue.empty()) {
-        llvm::errs() << " is empty.";
+        LOG_DEBUG(" is empty.");
     } else {
-        llvm::errs() << ":\n";
+        LOG_DEBUG(":\n");
         while (!queue.empty()) {
             Operation *op = queue.front();
             queue.pop();
-            llvm::errs() << "  " << *op << "\n";
+            LOG_DEBUG("  " << *op << "\n");
         }
     }
 
-    errs() << "remaining unassigned cube ops:\n";
+    LOG_DEBUG("remaining unassigned cube ops:\n");
     bool foundRemainingCube = false;
     for (auto &p : indegree) {
         Operation *op = p.first;
@@ -404,10 +399,10 @@ void TopologicalPartitionPlanner::dumpQueueAndIndegreeInfo()
             continue;
         }
         foundRemainingCube = true;
-        llvm::errs() << "  indegree=" << p.second << " op=" << *op << "\n";
+        LOG_DEBUG("  indegree=" << p.second << " op=" << *op << "\n");
     }
     if (!foundRemainingCube) {
-        llvm::errs() << "  <none>\n";
+        LOG_DEBUG("  <none>\n");
     }
 }
 
@@ -415,7 +410,7 @@ llvm::LogicalResult TopologicalPartitionPlanner::populateQueueWithReadyOps()
 {
     for (auto [op, indegree] : indegree) {
         if (indegree < 0) {
-            op->emitError("Indegree cannot be negative");
+            LOG_DEBUG("Indegree cannot be negative");
             return llvm::failure();
         }
         if (indegree == 0 && !newassigned.contains(op) && isCubeOp(op) && !assigned.contains(op)) {
