@@ -66,6 +66,13 @@ bool isInsideNestedLinalgRegion(Operation *op)
 
 } // namespace
 
+// Helper: check if an op result has the MayImplicitTransposeWithLastAxis attribute
+static bool hasImplicitTransposeAttribute(Value value)
+{
+    constexpr llvm::StringLiteral kMayImplicitTransposeWithLastAxis = "MayImplicitTransposeWithLastAxis";
+    return utils::getAnnotateOpWithAttr(value, kMayImplicitTransposeWithLastAxis).has_value();
+}
+
 // Helper: describe operation for logging
 std::string OpClassifierPass::describeOp(Operation *op) const
 {
@@ -184,7 +191,7 @@ void OpClassifierPass::matchToTensorPattern(Operation *def)
         return;
 
     // special case: implicit transpose
-    if (utils::getAnnotateOpWithAttr(toTensorOp.getResult(), kMayImplicitTransposeWithLastAxis)) {
+    if (hasImplicitTransposeAttribute(toTensorOp.getResult())) {
         return;
     }
 
@@ -244,9 +251,13 @@ void OpClassifierPass::matchTransposePattern(Operation *def)
     // Check input tensor
     auto operands = transposeOp->getOperands();
     for (const auto &op : operands) {
-        if (shouldMarkCubeSeed(op.getDefiningOp())) {
-            markCube(op.getDefiningOp());
-            cubeSeeds.push_back(op.getDefiningOp());
+        Operation *def = op.getDefiningOp();
+        if (def && hasImplicitTransposeAttribute(def->getResult(0))) {
+            continue;
+        }
+        if (shouldMarkCubeSeed(def)) {
+            markCube(def);
+            cubeSeeds.push_back(def);
             break; // No need to check other operands, one is enough to seed the transpose as CUBE
         }
     }
@@ -254,9 +265,13 @@ void OpClassifierPass::matchTransposePattern(Operation *def)
     // Check outs (DpsInits)
     auto outs = transposeOp.getDpsInits();
     for (const auto &out : outs) {
-        if (shouldMarkCubeSeed(out.getDefiningOp())) {
-            markCube(out.getDefiningOp());
-            cubeSeeds.push_back(out.getDefiningOp());
+        Operation *def = out.getDefiningOp();
+        if (def && hasImplicitTransposeAttribute(def->getResult(0))) {
+            continue;
+        }
+        if (shouldMarkCubeSeed(def)) {
+            markCube(def);
+            cubeSeeds.push_back(def);
             break;
         }
     }
