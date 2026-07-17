@@ -728,7 +728,7 @@ llvm::LogicalResult UBUsageOptPass::UBUsageOptimization(Block *block, const CVPi
 
     if (applyRecordChange(recordChange, nodeId2op, memGraph, bm)) {
         // FIXME: it shouldn't happen....
-        llvm::errs() << "Some skiped when apply UB usage optimization changes.\n";
+        LOG_DEBUG("Some skiped when apply UB usage optimization changes.\n");
     }
     return llvm::success();
 }

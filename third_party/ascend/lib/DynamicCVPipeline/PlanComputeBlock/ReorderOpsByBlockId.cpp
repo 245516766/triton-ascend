@@ -324,7 +324,7 @@ llvm::FailureOr<SmallVector<int>> GroupAdjacencyGraph::computeTopologicalOrder()
     Operation *op = block->getParentOp();
     constexpr std::string_view kErrorPrefix = "Failed to compute topological order for ";
     if (!op) {
-        llvm::errs() << kErrorPrefix << "an unknown block that is not contained in an op";
+        LOG_DEBUG(kErrorPrefix << "an unknown block that is not contained in an op");
         return llvm::failure();
     }
     size_t regionIdx = 0;
@@ -336,7 +336,7 @@ llvm::FailureOr<SmallVector<int>> GroupAdjacencyGraph::computeTopologicalOrder()
             }
         }
     }
-    op->emitError(kErrorPrefix) << "block in region " << regionIdx;
+    LOG_DEBUG(kErrorPrefix << "block in region " << regionIdx);
     return llvm::failure();
 }
 

@@ -568,7 +568,7 @@ void PlanVectorBlockPass::runOnOperation()
     llvm::SmallVector<Block *> blocks;
     moduleOp.walk([&](Block *block) {
         if (llvm::failed(planVectorBlockId(block, memDepGraph, bm, isUBRefineOptEnabled))) {
-            moduleOp.emitError() << "[" << DEBUG_TYPE << "] Failed to plan vector block id for block";
+            LOG_DEBUG("Failed to plan vector block id for block");
             signalPassFailure();
             return;
         }
