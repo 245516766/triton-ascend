@@ -167,14 +167,14 @@ static LogicalResult validateProducerIterArgInputs(scf::ForOp origForOp, Block *
 {
     size_t numOrig = origForOp.getInitArgs().size();
     if (iterArgDeltas.size() < numOrig) {
-        origForOp.emitError() << "[" << DEBUG_TYPE << "] iter_arg delta count " << iterArgDeltas.size()
-                              << " is smaller than original iter_arg count " << numOrig;
+        LOG_DEBUG("iter_arg delta count " << iterArgDeltas.size()
+                  << " is smaller than original iter_arg count " << numOrig);
         return failure();
     }
     if (oldBody->getNumArguments() < numOrig + kForBodyIterArgOffset ||
         newBody->getNumArguments() < numOrig + kForBodyIterArgOffset) {
-        origForOp.emitError() << "[" << DEBUG_TYPE << "] loop body argument count is smaller than expected "
-                              << (numOrig + kForBodyIterArgOffset);
+        LOG_DEBUG("loop body argument count is smaller than expected "
+                 << (numOrig + kForBodyIterArgOffset));
         return failure();
     }
     return success();
@@ -483,17 +483,16 @@ static LogicalResult validateGroupEmissionInputs(ArrayRef<LoadGroup> groups, Ext
     if (info.groupArgs.size() != numGroups || groupTrueFlagVals.size() != numGroups ||
         groupIndexOneVals.size() != numGroups || allGroupDepthConsts.size() != numGroups ||
         allGroupSlotConsts.size() != numGroups) {
-        origForOp.emitError()
-            << "[" << DEBUG_TYPE << "] array size mismatch in multi-buffer emission: groups=" << numGroups
+        LOG_DEBUG("array size mismatch in multi-buffer emission: groups=" << numGroups
             << ", groupArgs=" << info.groupArgs.size() << ", groupTrueFlagVals=" << groupTrueFlagVals.size()
             << ", groupIndexOneVals=" << groupIndexOneVals.size()
             << ", allGroupDepthConsts=" << allGroupDepthConsts.size()
-            << ", allGroupSlotConsts=" << allGroupSlotConsts.size();
+            << ", allGroupSlotConsts=" << allGroupSlotConsts.size());
         return failure();
     }
     if (groupIdx < 0 || static_cast<size_t>(groupIdx) >= numGroups) {
-        origForOp.emitError() << "[" << DEBUG_TYPE << "] load group index " << groupIdx
-                              << " is out of range for multi-buffer emission (numGroups=" << numGroups << ")";
+        LOG_DEBUG("load group index " << groupIdx
+                 << " is out of range for multi-buffer emission (numGroups=" << numGroups << ")");
         return failure();
     }
     return success();
@@ -513,8 +512,8 @@ static LogicalResult emitProducerAndSelectSlots(
         return failure();
     }
     if (static_cast<size_t>(groupIdx) >= state.prefixEmitted.size()) {
-        origForOp.emitError() << "[" << DEBUG_TYPE << "] load group index " << groupIdx
-                              << " exceeds multi-buffer state size " << state.prefixEmitted.size();
+        LOG_DEBUG("load group index " << groupIdx
+                 << " exceeds multi-buffer state size " << state.prefixEmitted.size());
         return failure();
     }
     if (state.prefixEmitted[groupIdx]) {

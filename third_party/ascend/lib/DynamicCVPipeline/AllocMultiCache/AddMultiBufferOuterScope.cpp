@@ -1064,7 +1064,6 @@ void AddMultiBufferOuterScopePass::runOnOperation()
     LDBG("[FlagBudget] used=" << flagCount << " (max=" << (kMaxTotalFlags + 1) << ")");
     if (flagCount > kMaxTotalFlags) {
         LDBG("[FlagBudget] FATAL: flag count " << flagCount << " > " << kMaxTotalFlags << ", halting pass");
-        module->emitError() << "[FlagBudget] flag count " << flagCount << " > " << kMaxTotalFlags << ", halting pass";
         signalPassFailure();
         return;
     }

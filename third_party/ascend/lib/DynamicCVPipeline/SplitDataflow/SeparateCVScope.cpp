@@ -188,7 +188,6 @@ static FailureOr<std::pair<scope::ScopeOp, scope::ScopeOp>> createTwoFullScopes(
 {
     if (!llvm::hasSingleElement(funcOp.getBody())) {
         logDebug("createTwoFullScopes failed for func '", funcOp.getName(), "': expected single block");
-        funcOp.emitError("SeparateCVScope only supports single-block functions");
         return failure();
     }
 
@@ -814,7 +813,6 @@ static LogicalResult normalizeNonRegionOp(Operation *op, StringRef scopeType)
     if (!infoOpt) {
         logDebug("normalizeNonRegionOp failed for op '", op->getName().getStringRef(),
                  "': missing ssbuffer.core_type in scope ", scopeType);
-        op->emitError("missing ssbuffer.core_type");
         return failure();
     }
 

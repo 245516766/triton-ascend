@@ -1,6 +1,7 @@
 #include <optional>
 
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/LogicalResult.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -13,6 +14,9 @@
 #include "mlir/IR/Operation.h"
 
 #include "ascend/include/DynamicCVPipeline/Common/Utils.h"
+
+static constexpr const char *DEBUG_TYPE = "CommonUtils";
+#define LOG_DEBUG(...) LLVM_DEBUG(llvm::dbgs() << " [" << DEBUG_TYPE << "] " << __VA_ARGS__)
 
 namespace mlir {
 namespace CVPipeline {
@@ -50,17 +54,17 @@ llvm::LogicalResult verifyOpBlockId(Operation *op)
     auto blockId = op->getAttrOfType<IntegerAttr>(kBlockId);
     if (blockId && blockId.getInt() < 0) {
         std::string_view errorPass = "previous passes";
-        auto diag = op->emitError() << "block id should not be negative! Please report to ";
         switch (getOpCoreType(op)) {
             case CoreType::CUBE_ONLY:
-                diag << "PlanCubePass";
+                errorPass = "PlanCubePass";
                 break;
             case CoreType::VECTOR_ONLY:
-                diag << "PlanVectorPass";
+                errorPass = "PlanVectorPass";
                 break;
             default:
-                diag << "previous passes";
+                errorPass = "previous passes";
         }
+        LOG_DEBUG("block id should not be negative! Please report to " << errorPass << "\n");
         return llvm::failure();
     }
 
@@ -116,11 +120,12 @@ bool isVectorOnlyOp(Operation *op)
 
 bool isScfOp(Operation *op)
 {
-  return llvm::isa<scf::SCFDialect>(op->getDialect());
+    return llvm::isa<scf::SCFDialect>(op->getDialect());
 }
 
 // Check nextOp is only user of preOp
-bool isOnlyDirectlyUse(Operation *preOp, Operation *nextOp, const CVPipeline::MemoryDependenceGraph &memGraph) {
+bool isOnlyDirectlyUse(Operation *preOp, Operation *nextOp, const CVPipeline::MemoryDependenceGraph &memGraph)
+{
     if (!preOp || !nextOp) {
         return false;
     }

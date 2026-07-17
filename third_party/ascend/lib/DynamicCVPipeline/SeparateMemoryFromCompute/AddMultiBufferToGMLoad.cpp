@@ -151,7 +151,7 @@ void AddMultiBufferToGMLoadPass::runOnOperation()
     // Step 3: Transform each for loop with multi-buffer logic
     allCtxForOps_.clear();
     if (failed(applyMultiBufferToGMLoadLoops())) {
-        module.emitError() << "[" << DEBUG_TYPE << "] Step 3 applyMultiBufferToGMLoadLoops failed";
+        LOG_DEBUG("Step 3 applyMultiBufferToGMLoadLoops failed");
         signalPassFailure();
         return;
     }

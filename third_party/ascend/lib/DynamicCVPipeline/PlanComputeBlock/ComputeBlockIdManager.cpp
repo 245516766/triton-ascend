@@ -28,6 +28,9 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/LogicalResult.h"
 
+static constexpr const char *DEBUG_TYPE = "ComputeBlockIdManager";
+#define LOG_DEBUG(...) LLVM_DEBUG(llvm::dbgs() << " [" << DEBUG_TYPE << "] " << __VA_ARGS__)
+
 namespace mlir {
 namespace CVPipeline {
 
@@ -135,8 +138,8 @@ llvm::LogicalResult ComputeBlockIdManager::markAndRecord(Operation *op, int bloc
     op->setAttr(kBlockId, IntegerAttr::get(IntegerType::get(ctx, blockIdWidth), blockId));
     auto itOld = opToBlockId.find(op);
     if (itOld != opToBlockId.end() && itOld->second != -1) {
-        llvm::errs() << "Error: Operation already has a block id. Op: " << *op << ", old block id: " << itOld->second
-                     << ", new block id: " << blockId << "\n";
+        LOG_DEBUG("Error: Operation already has a block id. Op: " << *op << ", old block id: " << itOld->second
+                     << ", new block id: " << blockId << "\n");
         return llvm::failure();
     }
 
