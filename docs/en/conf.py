@@ -79,7 +79,7 @@ if not _force_mock:
 
 if _force_mock:
     _load_module(
-        "docs.zh._mock._triton_mock",
+        "docs.en._mock._triton_mock",
         os.path.join(_HERE, "_mock", "_triton_mock.py"),
     ).install()
 
@@ -163,7 +163,7 @@ def setup(app):
     app.add_css_file('custom.css')
 
     _load_module(
-        "docs.zh.python_api._inject_ascend_notes",
+        "docs.en.python_api._inject_ascend_notes",
         os.path.join(_HERE, "python-api", "_inject_ascend_notes.py"),
     ).setup(app)
 
