@@ -39,7 +39,8 @@ public:
 
   void setConditionInfo(ControlFlowConditionInfo *info) { this->info = info; }
 
-  // `op` is the main-loop op (scf.for or scf.while) carrying ssbuffer.main_loop.
+  // `op` is the main-loop op (scf.for or scf.while) carrying
+  // ssbuffer.main_loop.
   LogicalResult computeYieldValues(
       Operation *op,
       const llvm::DenseMap<int, SmallVector<Operation *>> &blockOps,
