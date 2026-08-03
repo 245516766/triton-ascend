@@ -542,7 +542,9 @@ findIterArgUpstreamOps(Value def,
   // Get the iter_arg index from block argument
   unsigned argIdx = blockArg.getArgNumber();
   auto inits = getLoopInitValues(parentOp);
-  if (argIdx >= inits.size() || argIdx == 0)
+  // For scf.for: argIdx 0 is lb (loop lower bound), not an iter_arg, skip it.
+  // For scf.while: argIdx 0 can be a valid iter_arg, don't skip.
+  if (argIdx >= inits.size() || (isa<scf::ForOp>(parentOp) && argIdx == 0))
     return;
 
   Value initValue = inits[argIdx - (isa<scf::ForOp>(parentOp) ? 1 : 0)];
