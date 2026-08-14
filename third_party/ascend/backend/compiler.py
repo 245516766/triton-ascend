@@ -213,6 +213,13 @@ def ttir_to_linalg(mod, metadata, opt, *, named_ops=False):
         ascend.passes.ttir.add_triton_to_structure(pm, enable_mask_fallback_conversion, optimize_dynamic_offset)
         ascend.passes.ttir.add_triton_to_linalg(pm, False, named_ops, enable_nd2nz_on_vector, enable_select_analysis,
                                                 compile_on_910_95)
+        # Restricted to 910_95/950. The merged buffer is written by two disjoint
+        # memref.copy ops, and on 910_9362 the generated code only makes the
+        # copy next to the surviving to_tensor visible, so the other half of the
+        # tile reads back the padding value. The IR is unchanged through
+        # bishengir-opt, so the loss happens in code generation.
+        if compile_on_910_95:
+            ascend.passes.ttir.add_merge_concat_load_buffer(pm)
         if metadata["enable_dynamic_cv_pipeline"]:
             metadata["set_workspace_multibuffer"] = 0
             metadata["enable_mixed_cv"] = True
@@ -1239,6 +1246,10 @@ class AscendBackend(BaseBackend):
     @staticmethod
     def supports_target(target: GPUTarget):
         return target.backend == "npu"
+
+    @staticmethod
+    def use_alignment_specialization(options: dict) -> bool:
+        return options.get("compile_mode") == "simt_only" or bool(options.get("force_simt_only", False))
 
     def __init__(self, target: GPUTarget) -> None:
         super().__init__(target)
