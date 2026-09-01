@@ -697,6 +697,11 @@ def linalg_to_bin_enable_npu_compile_910_95(linalg: str, metadata, opt):
         if enable_vf_fusion is not None:
             _compile_option_list += \
                 [f"--enable-vf-fusion={enable_vf_fusion}"]
+                
+        enable_dynamic_cv_pipeline = metadata["enable_dynamic_cv_pipeline"]
+        if enable_dynamic_cv_pipeline == True:
+            _compile_option_list += \
+                [f"--enable-vf-operand-substitution=True"]
 
         enable_flatten = metadata["enable_flatten"]
         if enable_flatten is not None:
@@ -1104,8 +1109,8 @@ class NPUOptions:
     enable_dynamic_cv_pipeline: bool = None
     enable_cube_block_merge: bool = False
     hfusion_enable_multiple_consumer_fusion: bool = False
-    buf_slot_num_of_veccore: int = None
-    buf_slot_num_of_crosscore: int = None
+    buf_slot_num_of_veccore: int = 3
+    buf_slot_num_of_crosscore: int = 2
     buf_slot_num_of_gm: int = None
 
     # plan memory strategy: "default" (default) or "largest-first"
