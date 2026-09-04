@@ -162,8 +162,6 @@ private:
                                                   int iniConsumerId);
   mlir::Operation *getConsumerWaitPoint(int transferIndex);
   mlir::Operation *getCopyPointBeforeStore(DependencyInfo &dep, Value value);
-  mlir::Operation *getFixpipePointAfterProducer(Value depValue,
-                                                int iniProducerBlockId);
   mlir::Operation *
   insertVectorToCubeTransfer(mlir::OpBuilder &builder,
                              mlir::Value normalizedValue, DependencyInfo &dep,
