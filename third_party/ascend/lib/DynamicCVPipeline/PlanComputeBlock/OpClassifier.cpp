@@ -1607,6 +1607,14 @@ int OpClassifierPass::handleSCFYield() {
 
 OpCoreType
 OpClassifierPass::classifyIterArgFromBody(BlockArgument iterArg) const {
+  // Body-driven classification only applies to tensor iter_args. A scalar
+  // iter_arg (e.g. an i32 pipeline counter) is a VECTOR value: the CUBE side
+  // merely reads it for index arithmetic and can recompute it cheaply, so a
+  // CUBE consumer must not force its init onto the CUBE clone. Return
+  // UNDETERMINED so the caller falls back to the yielded-def logic.
+  if (isScalarType(iterArg))
+    return OP_UNDETERMINED;
+
   // Walk every non-yield user and accumulate the union of their core types,
   // then decide. Short-circuiting on the first CUBE_ONLY user would lose the
   // VECTOR_ONLY signal when the iter_arg has *both* CUBE and VECTOR consumers
