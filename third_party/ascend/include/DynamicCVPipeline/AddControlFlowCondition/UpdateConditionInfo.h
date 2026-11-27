@@ -183,6 +183,18 @@ private:
   // Dispatch yield update for scf.for / scf.while main_loop.
   int updateLoopYield(Operation *loopOp);
 
+  // Insert the completion-ordering handshake for the intra-core multi-buffer
+  // pools of one main loop: a set after every pool write of the group, a
+  // wait before the pool read. The credit guards built by
+  // setIntraCoreCondition only throttle the issue order of the write and
+  // the read; they do not order the completion of the (asynchronous) write
+  // against the read, so without the handshake the consumer can overtake
+  // the write in flight and read stale slot data.
+  int insertIntraPoolCompletionSync(
+      ModuleOp module,
+      DenseMap<int, DenseMap<Operation *, SmallVector<Operation *>>>
+          &intraCoreBuffers);
+
   // loopOp is scf.for or scf.while main_loop.
   int combineConditions(ModuleOp module, Value crossCoreCond, Value preloadCond,
                         Value intraCoreCond, Value flowOptCond, scf::IfOp ifOp,

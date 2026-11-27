@@ -28,6 +28,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachinePassManager.h"
@@ -36,6 +37,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Builders.h"
@@ -46,6 +48,7 @@
 #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition.h"
 #include "ascend/include/DynamicCVPipeline/AddControlFlowCondition/Utils.h"
 #include "ascend/include/DynamicCVPipeline/Common/BufferCountManager.h"
+#include "ascend/include/DynamicCVPipeline/Common/FlagIdManager.h"
 #include "ascend/include/DynamicCVPipeline/Common/SSBufferManager.h"
 #include "ascend/include/DynamicCVPipeline/Common/Utils.h"
 
@@ -2340,6 +2343,214 @@ int UpdateConditionInfoPass::updateLoopYield(Operation *loopOp) {
   return UPDATE_CONDITION_INFO_FAILED;
 }
 
+// --- Intra-core pool completion sync ---------------------------------------
+//
+// The intraCoreDependentMap pools (AllocMultiCache) decouple a producer
+// block from a consumer block of the same core through slot buffers in
+// shared memory. The credit guards built by setIntraCoreCondition throttle
+// the ISSUE order of the pool write and the pool read only: the consumer
+// may read the slot in the very while iteration in which the producer
+// wrote it (lockstep), and the write lowers to an asynchronous move
+// (hivm.copy -> MTE3) or to a vector store, while the consumer reads the
+// slot from a different pipeline position. Nothing orders the COMPLETION
+// of the write against the read, so the read can overtake the write in
+// flight and observe stale slot data (seen as nondeterministic per
+// sub-block corruption of the first beats of the alpha pool in flash
+// attention varlen).
+//
+// The cross-core transfers carry this protection from
+// InterCoreTransferAndSync, which posts an event on the writing pipe after
+// the transfer and waits for it on the reading pipe. The pools are
+// invisible to that pass because AllocMultiCache replaces a pure SSA
+// dependency with memory only after InterCoreTransferAndSync has already
+// run. Mirror the cross-core protocol here, with ONE FLAG PER SLOT: the
+// event latch is a single bit, so one flag per pool would merge the events
+// of the rounds the producer runs ahead and deadlock the consumer; the
+// slot lanes alternate set/write and wait/read strictly, because the
+// backpressure of the credit guards limits the producer to the pool depth
+// and a slot is only rewritten after its previous reader returned the
+// credit.
+
+// Collect every flag id the sync ops of the module already use. Returns
+// false when a sync op carries a dynamic flag id the scan cannot see.
+static bool collectUsedSyncFlagIds(ModuleOp module,
+                                   llvm::SmallSet<int64_t, 16> &usedFlags) {
+  bool hasDynamicFlag = false;
+  module.walk([&](Operation *op) {
+    if (isa<hivm::SyncBlockSetOp, hivm::SyncBlockWaitOp>(op) &&
+        !op->getAttrOfType<IntegerAttr>("static_flag_id") &&
+        !op->getAttrOfType<IntegerAttr>("flag")) {
+      hasDynamicFlag = true;
+    }
+    if (auto attr = op->getAttrOfType<IntegerAttr>("static_flag_id")) {
+      usedFlags.insert(attr.getInt());
+    }
+    if (auto attr = op->getAttrOfType<IntegerAttr>("flag")) {
+      usedFlags.insert(attr.getInt());
+    }
+    if (auto sync = dyn_cast<hivm::SyncBlockOp>(op)) {
+      if (auto flagId = sync.getFlagId()) {
+        usedFlags.insert(flagId->getInt());
+      }
+    }
+  });
+  return !hasDynamicFlag;
+}
+
+// The pipe that executes the pool write: hivm.copy lowers to an MTE3 move,
+// any other write form is a vector store of the vector compute.
+static hivm::PIPE getIntraPoolWritePipe(Operation *producerOp) {
+  if (isa<hivm::CopyOp>(producerOp)) {
+    return hivm::PIPE::PIPE_MTE3;
+  }
+  return hivm::PIPE::PIPE_V;
+}
+
+// The kIntraDeps attribute is shared with the C2C transfers of
+// InterCoreTransferAndSync (a fixpipe writing an L1 buffer, read through a
+// memory space cast). Those are not multi-buffer pools: their event
+// pairing needs a PIPE_FIX source and a different read pipe, so leave
+// them to the guards alone.
+static bool isC2CTransferGroup(ArrayRef<Operation *> producerOps,
+                               Operation *consumerOp) {
+  for (Operation *op : producerOps) {
+    if (op && isa<hivm::FixpipeOp>(op)) {
+      return true;
+    }
+  }
+  return consumerOp && isa<memref::MemorySpaceCastOp>(consumerOp);
+}
+
+// Collect the slot read ops of the consumer in slot order: a
+// single-buffer pool reads through its one to_tensor, a multi-buffer pool
+// through one to_tensor per branch of the slot dispatch chain (the chain
+// is visited in pre-order, which is the branch order the chain was built
+// in, i.e. the slot order).
+static SmallVector<Operation *> collectPoolReadOps(Operation *consumerOp) {
+  SmallVector<Operation *> reads;
+  if (isa<bufferization::ToTensorOp>(consumerOp)) {
+    reads.push_back(consumerOp);
+    return reads;
+  }
+  auto ifOp = dyn_cast<scf::IfOp>(consumerOp);
+  if (!ifOp) {
+    return reads;
+  }
+  ifOp->walk([&](Operation *op) {
+    if (isa<bufferization::ToTensorOp>(op)) {
+      reads.push_back(op);
+    }
+  });
+  return reads;
+}
+
+int UpdateConditionInfoPass::insertIntraPoolCompletionSync(
+    ModuleOp module,
+    DenseMap<int, DenseMap<Operation *, SmallVector<Operation *>>>
+        &intraCoreBuffers) {
+  if (intraCoreBuffers.empty()) {
+    return UPDATE_CONDITION_INFO_SUCCESS;
+  }
+
+  llvm::SmallSet<int64_t, 16> usedFlags;
+  if (!collectUsedSyncFlagIds(module, usedFlags)) {
+    LDBG("Skip intra pool completion sync: a sync op carries a dynamic flag "
+         "id.\n");
+    return UPDATE_CONDITION_INFO_SUCCESS;
+  }
+  SmallVector<int64_t> freeFlags;
+  for (int64_t id = 0; id <= FlagIdManager::MAX_FLAG_ID; ++id) {
+    if (!usedFlags.contains(id)) {
+      freeFlags.push_back(id);
+    }
+  }
+
+  OpBuilder builder(module.getContext());
+  size_t nextFlag = 0;
+  for (auto &[groupIdx, deps] : intraCoreBuffers) {
+    if (deps.empty()) {
+      continue;
+    }
+    // A group with several distinct consumer ops does not fit the
+    // single-event-per-slot handshake; leave it to the credit guards and
+    // log it.
+    if (deps.size() > 1) {
+      LDBG("Skip intra pool completion sync for group "
+           << groupIdx << ": " << deps.size() << " consumer ops.\n");
+      continue;
+    }
+
+    auto &[consumerOp, producerOps] = *deps.begin();
+    if (!consumerOp || producerOps.empty()) {
+      continue;
+    }
+    if (isC2CTransferGroup(producerOps, consumerOp)) {
+      LDBG("Skip intra pool completion sync for group "
+           << groupIdx << ": C2C transfer group.\n");
+      continue;
+    }
+
+    // One flag per slot: the producers and the reads pair up in slot
+    // order. A slot count the reads do not match means an unexpected
+    // pool form; leave the group to the credit guards.
+    size_t slotCount = producerOps.size();
+    SmallVector<Operation *> readOps = collectPoolReadOps(consumerOp);
+    if (readOps.size() != slotCount) {
+      LDBG("Skip intra pool completion sync for group "
+           << groupIdx << ": " << readOps.size() << " reads for " << slotCount
+           << " slots.\n");
+      continue;
+    }
+    if (nextFlag + slotCount > freeFlags.size()) {
+      LDBG("Skip intra pool completion sync for group "
+           << groupIdx << ": no free flag id left.\n");
+      break;
+    }
+
+    // The pool lives on a single core: read the core type of the scope
+    // holding the consumer. Without a scope core type the event pairing
+    // cannot be derived; leave the group to the credit guards.
+    scope::ScopeOp scopeOp = findOwningScope(consumerOp);
+    bool isAIC = false;
+    bool isAIV = false;
+    if (!getScopeCoreType(scopeOp, isAIC, isAIV)) {
+      LDBG("Skip intra pool completion sync for group "
+           << groupIdx << ": no scope core type.\n");
+      continue;
+    }
+    auto coreAttr = hivm::TCoreTypeAttr::get(builder.getContext(),
+                                             isAIC ? hivm::TCoreType::CUBE
+                                                   : hivm::TCoreType::VECTOR);
+
+    // Every producer op of a group writes the same slot buffer in the same
+    // way, so the first op decides the event source pipe. The consumer
+    // reads the slot through the vector compute of its core.
+    auto writePipeAttr = PipeAttr::get(
+        builder.getContext(), getIntraPoolWritePipe(producerOps.front()));
+    auto readPipeAttr = PipeAttr::get(builder.getContext(), hivm::PIPE::PIPE_V);
+
+    for (size_t slot = 0; slot < slotCount; ++slot) {
+      auto flagAttr = builder.getI64IntegerAttr(freeFlags[nextFlag++]);
+      Operation *producerOp = producerOps[slot];
+      Operation *readOp = readOps[slot];
+      if (!producerOp || !readOp) {
+        continue;
+      }
+      builder.setInsertionPointAfter(producerOp);
+      builder.create<hivm::SyncBlockSetOp>(producerOp->getLoc(), coreAttr,
+                                           writePipeAttr, readPipeAttr,
+                                           flagAttr);
+      builder.setInsertionPoint(readOp);
+      builder.create<hivm::SyncBlockWaitOp>(
+          readOp->getLoc(), coreAttr, writePipeAttr, readPipeAttr, flagAttr);
+    }
+    LDBG("Inserted intra pool completion sync for group "
+         << groupIdx << ": " << slotCount << " slot flags, first flag "
+         << (slotCount > 0 ? freeFlags[nextFlag - slotCount] : -1) << "\n");
+  }
+  return UPDATE_CONDITION_INFO_SUCCESS;
+}
+
 int UpdateConditionInfoPass::collectSSBufferIfOps(
     Operation *loopOp, SmallVector<scf::IfOp> &ifOps) {
   auto collectIfOps = [&](Operation *op) -> WalkResult {
@@ -2874,6 +3085,15 @@ int UpdateConditionInfoPass::updateIfConds(
     }
     // Step7: Update loop yield with latest control values
     if (updateLoopYield(loopOp) == UPDATE_CONDITION_INFO_FAILED) {
+      return UPDATE_CONDITION_INFO_FAILED;
+    }
+
+    // Step8: Complete the intra-core pool protocol with the
+    // completion-ordering handshake between the pool write and the pool
+    // read. The ops of the pool groups were moved, not cloned, by the
+    // condition rewrite, so the dependency map still identifies them.
+    if (insertIntraPoolCompletionSync(module, intraCoreBuffers) ==
+        UPDATE_CONDITION_INFO_FAILED) {
       return UPDATE_CONDITION_INFO_FAILED;
     }
   }
